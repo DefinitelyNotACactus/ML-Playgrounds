@@ -2,6 +2,7 @@ from dash import Dash, dcc, html, Input, Output, State, no_update, callback_cont
 from sklearn.datasets import make_blobs, make_circles, make_moons
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from SVM_Parameters import SVM_Parameters
@@ -35,7 +36,7 @@ app.layout = html.Div([
     html.Div(id="models", children=[
         html.Button("Nearest Neighbors", id="bt-knn", className="basic-button"),
         html.Button("Support Vector Machine", id="bt-svm", className="basic-button"),
-        html.Button("Neural Network", id="bt-nn", className="basic-button", style={"margin-right": "30px"})
+        html.Button("Decision Tree", id="bt-dtc", className="basic-button", style={"margin-right": "30px"})
     ], className="container-flex"),
     # Corpo do app
     html.Div(id="main", children=[
@@ -84,7 +85,7 @@ app.layout = html.Div([
         ], id="parameters-svm-column", className="column", style={"width": "15%", "position": "relative"}),
         html.Div(children=[
             html.H4("Parâmetros"),
-            html.P("Número de vizinhos"),
+            html.P("Vizinhos"),
             dcc.Input(value=5, id="k-input"),
             html.P("Pesos"),
             dcc.Dropdown(
@@ -103,6 +104,39 @@ app.layout = html.Div([
             html.Button("Treinar modelo", id="bt-fit-knn", className="basic-button", style={"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"})
         ], id="parameters-knn-column", className="column", style={"width": "15%", "position": "relative", "display": "none"}),
         html.Div(children=[
+            html.H4("Parâmetros"),
+            html.P("Critério de divisão"),
+            dcc.Dropdown(
+                id="criterion-dropdown",
+                options=[
+                    {"label": key.upper(), "value": key}
+                    for key in ["gini", "entropy"]
+                ],
+                value="gini",
+                clearable=False,
+                className="dropdown",
+            ),
+            html.P("Estratégia de divisão"),
+            dcc.Dropdown(
+                id="splitter-dropdown",
+                options=[
+                    {"label": key.upper(), "value": key}
+                    for key in ["best", "random"]
+                ],
+                value="best",
+                clearable=False,
+                className="dropdown",
+            ),
+            html.P("Profundidade máxima da árvore"),
+            html.P("Utilize None para ilimitado"),
+            dcc.Input(value="None", id="depth-input"),
+            html.P("Mínimo de amostras para se dividir um nó"),
+            dcc.Input(value=2, id="samples-input"),
+            html.P("Mínimo de amostras em um nó folha"),
+            dcc.Input(value=1, id="leaf-input"),
+            html.Button("Treinar modelo", id="bt-fit-dtc", className="basic-button", style={"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"})
+        ], id="parameters-dtc-column", className="column", style={"width": "15%", "position": "relative", "display": "none"}),
+        html.Div(children=[
             html.H4("Modelo"),
             #html.P("Acurácia no treino:"),
             html.P("Acurácia do modelo:", id="model-accuracy-display"),
@@ -111,17 +145,17 @@ app.layout = html.Div([
         ], className="main-div"),
 ])
 
-buttons = ["bt-knn", "bt-svm", "bt-nn"]
+buttons = ["bt-knn", "bt-svm", "bt-dtc"]
 @app.callback(
     [
         Output("bt-knn", "className"),
         Output("bt-svm", "className"),
-        Output("bt-nn", "className"),
+        Output("bt-dtc", "className"),
     ],
     [
         Input("bt-knn", "n_clicks"),
         Input("bt-svm", "n_clicks"),
-        Input("bt-nn", "n_clicks"),
+        Input("bt-dtc", "n_clicks"),
     ],
 )
 def set_active(*args):
@@ -151,9 +185,10 @@ def set_active(*args):
         Input("bt-generate-data", "n_clicks"),
         Input("bt-fit-svm", "n_clicks"),
         Input("bt-fit-knn", "n_clicks"),
+        Input("bt-fit-dtc", "n_clicks"),
     ],
     [
-        # Memoria parâmetros dados
+        # Memória de parâmetros dos dados
         State("seed-memory", "data"),
         State("data-type-memory", "data"),
         State("n-memory", "data"),
@@ -167,13 +202,19 @@ def set_active(*args):
         State("k-input", "value"),
         State("weights-dropdown", "value"),
         State("p-input", "value"),
-        # Estado do input de dados
+        # Parâmetros da Árvore de Decisão
+        State("criterion-dropdown", "value"),
+        State("splitter-dropdown", "value"),
+        State("depth-input", "value"),
+        State("samples-input", "value"),
+        State("leaf-input", "value"),
+        # Estado do input dos parâmetros dos dados
         State("n-input", "value"),
         State("std-input", "value"),
         State("data-type-dropdown", "value"),
     ]
 )
-def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, mem_seed, mem_data_type, mem_n, mem_std, kernel, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, n_input, std_input, data_type_input):
+def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input):
     seed = randint(0, 1000)
     # Definir se o callback foi ativado por um botão
     ctx = callback_context
@@ -186,18 +227,24 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, mem_seed, mem_data_ty
     # Gerar o modelo
     if button_id == "bt-fit-svm":
         if gamma_input != "auto" and gamma_input != "scale": gamma_input = float(gamma_input)
-        model = SVC(kernel=kernel, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
+        model = SVC(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
         model.fit(X, y)
         fig.add_trace(plot_svc_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
     if button_id == "bt-fit-knn":
         model =  KNeighborsClassifier(n_neighbors=int(k_input), weights=knn_weights, p=int(p_input))
         model.fit(X, y)
-        fig.add_trace(plot_knn_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
+        fig.add_trace(plot_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
+    if button_id == "bt-fit-dtc":
+        if depth_input == "None": depth = None
+        else: depth = int(depth_input)
+        model =  DecisionTreeClassifier(criterion=criterion_input, splitter=splitter_input, max_depth=depth, min_samples_split=int(split_input), min_samples_leaf=int(leaf_input))
+        model.fit(X, y)
+        fig.add_trace(plot_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
     # Adicionar os pontos do dataset ao gráfico
     fig.add_trace(
         go.Scatter(x=X[:, 0], y=X[:, 1], mode="markers", marker=dict(color=y, colorscale=colorscale), showlegend=False, name="")
     )
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn": return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score(y, model.predict(X)) * 100), no_update, no_update, no_update, no_update
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score(y, model.predict(X)) * 100), no_update, no_update, no_update, no_update
     return fig, "Clique em treinar modelo para ver o desempenho dele", str(seed), str(data_type_input), int(n_input), float(std_input)
     
 @app.callback(Output("std-info", "children"), Input("data-type-dropdown", "value"))
@@ -215,12 +262,13 @@ def update_svm_parameters_info(kernel_type):
     [
         Output("parameters-svm-column", "style"),
         Output("parameters-knn-column", "style"),
+        Output("parameters-dtc-column", "style"),
         Output("bt-memory", "data"),
     ],
     [
         Input("bt-knn", "n_clicks"),
         Input("bt-svm", "n_clicks"),
-        Input("bt-nn", "n_clicks"),
+        Input("bt-dtc", "n_clicks"),
         Input("bt-memory", "data"),
     ],
 )
@@ -228,14 +276,15 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
     # Definir se o callback foi ativado por um botão
     ctx = callback_context
     # Caso entre no if abaixo é por ter sido o startup do aplicativo
-    if not ctx.triggered or not any([bt_knn, bt_svm, bt_nn, bt_memory]): return {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, no_update
+    if not ctx.triggered or not any([bt_knn, bt_svm, bt_nn, bt_memory]): return {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, no_update
     # Obter o id do botão selecionado (ou não, caso não tenha sido um que disparou o callback)
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
     # Foi clicado no mesmo botão
-    if button_id == bt_memory: return no_update, no_update, no_update
-    if button_id == "bt-svm": return {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, "bt-svm"
-    if button_id == "bt-knn": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, "bt-knn"
-    return no_update, no_update, no_update
+    if button_id == bt_memory: return no_update, no_update, no_update, no_update
+    if button_id == "bt-svm": return {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, "bt-svm"
+    if button_id == "bt-knn": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, "bt-knn"
+    if button_id == "bt-dtc": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, "bt-knn"
+    return no_update, no_update, no_update, no_update
     
 # Função para gerar uma figura seguindo os padrões do dashboard
 def generate_figure(X):
@@ -268,7 +317,7 @@ def plot_svc_decision_function(xlim, ylim, model, margin=1, size=100):
             #line_width=2,
         )
                
-def plot_knn_decision_function(xlim, ylim, model, margin=1, size=100):
+def plot_decision_function(xlim, ylim, model, margin=1, size=100):
     x = np.linspace(xlim[0] - margin, xlim[1] + margin, size)
     y = np.linspace(ylim[0] - margin, ylim[1] + margin, size)
     xx, yy = np.meshgrid(x, y)
