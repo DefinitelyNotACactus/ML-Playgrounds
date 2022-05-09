@@ -18,6 +18,7 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 colorscale = [[0, "#003366"], [0.5, "rgba(203, 203, 212, .1)"], [1, "#663300"]]
 
 app = Dash(__name__, external_stylesheets=external_stylesheets)
+app.title = "ML Playgrounds"
 
 server = app.server
 
@@ -283,7 +284,7 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
     if button_id == bt_memory: return no_update, no_update, no_update, no_update
     if button_id == "bt-svm": return {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, "bt-svm"
     if button_id == "bt-knn": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, {"width": "15%", "position": "relative", "display": "none"}, "bt-knn"
-    if button_id == "bt-dtc": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, "bt-knn"
+    if button_id == "bt-dtc": return {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative", "display": "none"}, {"width": "15%", "position": "relative"}, "bt-dtc"
     return no_update, no_update, no_update, no_update
     
 # Função para gerar uma figura seguindo os padrões do dashboard

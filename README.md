@@ -16,4 +16,5 @@ The Machine Learning Playgrounds is a project developed with the purpose of prac
     - [x] Moon
 
 ## Live demo
-Coming soon
+[Click here!](https://ml-playgrounds.herokuapp.com)
+
