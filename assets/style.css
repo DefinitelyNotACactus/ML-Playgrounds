@@ -192,3 +192,17 @@ header h1 .optional {
 .rc-slider-handle:focus{
     border-color: #003366;
 }
+
+.input {
+    width: 100%;
+}
+
+.on {
+    margin-right: 0px;
+    margin-left: 2%;
+    margin-top: 0px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
