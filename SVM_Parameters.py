@@ -1,5 +1,7 @@
+import numpy as np
+
 class SVM_Parameters:
-  def __init__(self, svm_model, X, y):
+  def __init__(self, svm_model, X, y, margin=True):
     self.model = svm_model
     self.N = len(X)
     self.d = len(X[0])
@@ -10,8 +12,9 @@ class SVM_Parameters:
     
     self.__separate_VS()
     self.compute_b()
-    self.__comput_margin(X, y)
+    if margin is True: self.__comput_margin(X, y)
 
+# TODO: xm None
   def Kernel(self, xn, xm):
     xn = np.array(xn)
     xm = np.array(xm)
@@ -25,19 +28,20 @@ class SVM_Parameters:
 
   def compute_b(self):
     self.somab_ = 0
-    for alpha, xm in zip(self.model.dual_coef_[0],self.model.support_vectors_):
+    for alpha, xm in zip(self.model.dual_coef_[0], self.model.support_vectors_):
       self.somab_ += alpha*self.Kernel(xm, self.xvs)
     
   def compute_left_hand(self, xn, yn):
     somaw_ = 0
     #somab_ = 0
-    for alpha, xm in zip(self.model.dual_coef_[0],self.model.support_vectors_):
+    for alpha, xm in zip(self.model.dual_coef_[0], self.model.support_vectors_):
       somaw_ += alpha*self.Kernel(xm, xn)
       #somab_ += alpha*self.Kernel(xm, self.xvs)
 
     return yn*(somaw_ + 1/self.yvs - self.somab_)
 
   def print(self):
+    print("Margem: " + str(self.margin))
     for alpha, idvs in zip(self.model.dual_coef_[0], self.model.support_):
       print("Alpha: " + str(alpha) + " - ID: " + str(idvs))
   
@@ -54,7 +58,6 @@ class SVM_Parameters:
       soma_min_dist += min_dist
 
     self.margin = (soma_min_dist / len(self.X_VS_0))/2
-    print("Margem: " + str(self.margin))
 
   def __separate_VS(self):
     self.xvs = None

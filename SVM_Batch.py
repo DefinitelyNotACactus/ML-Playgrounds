@@ -13,8 +13,8 @@ def truncate(number, digits) -> float:
     return trunc(stepper * number) / stepper
 
 def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, degree_input):
-    y = [1 if yi == 1 else -1 for yi in y]
-    S_X, U_X, S_y, U_y = train_test_split(X, y, test_size=1-S_size, random_state=42)
+    y_new = [1 if yi == 1 else -1 for yi in y]
+    S_X, U_X, S_y, U_y = train_test_split(X, y_new, test_size=1-S_size, random_state=42)
     i = 0
     in_S = {}
     S_to_U = np.array([-1 for idx in range(len(S_X))])
@@ -34,7 +34,8 @@ def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, deg
                     # Atualiza o dicionario in_S para informar que o elemento não faz mais parte de S
                     # S_to_U mapeia um indice em S para o respectivo indice em U
                     in_S[S_to_U[to_remove]] = 'No'
-            S_to_U = np.delete(S_to_U, to_remove_idx, axis=0)
+
+            if len(to_remove_idx) > 0: S_to_U = np.delete(S_to_U, to_remove_idx, axis=0)
         S_X = np.array([x for x, j in zip(S_X, r) if j in model.support_])
         S_y = np.array([y for y, j in zip(S_y, r) if j in model.support_])
             
@@ -78,4 +79,4 @@ def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, deg
             U_X = np.delete(U_X, VS_indexes, axis=0)
             U_y = np.delete(U_y, VS_indexes, axis=0)
 
-    return model, i
+    return model, i, S_X, U_X, S_y, U_y
