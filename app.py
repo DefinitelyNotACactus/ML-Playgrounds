@@ -73,7 +73,7 @@ app.layout = html.Div([
             html.H4("Parâmetros"),
             html.Div(children=[
                 html.P("Batch SVM"),
-                BooleanSwitch(disabled=True, color="#003366", id="batch-switch")
+                BooleanSwitch(disabled=False, color="#003366", id="batch-switch")
                 ], style={
                     "display": "flex",
                     "justify-content": "space-between",
@@ -109,6 +109,7 @@ app.layout = html.Div([
                     "justify-content": "space-between",
                     "align-items": "center"}),
                 html.P("Passo: 0", id="step-display", style={"display": "none"}),
+                html.P("Tamanho S: 0 Tamanho S: 0", id="size-display", style={"display": "none"}),
         ], id="parameters-svm-column", className="column", style={"width": "15%", "position": "relative"}),
         # Div de parâmetros do K-NN
         html.Div(children=[
@@ -210,6 +211,7 @@ def set_active(*args):
         Output("n-memory", "data"),
         Output("std-memory", "data"),
         Output("step-display", "children"),
+        Output("size-display", "children"),
         Output("step-memory", "data")
     ],
     [
@@ -286,15 +288,20 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_st
         model, n_steps, S_X, U_X, S_y, U_y  = train_SVM_batch(X, y, float(s_input), float("inf"), kernel_input, c_input, gamma_input, degree_input)
         fig.add_trace(plot_svc_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
     if button_id == "bt-fit-step" or button_id == "bt-fit-skip":
-        for trace in plot_svm_batch_points(S_X, S_y, U_X, U_y): fig.add_trace(trace)
-        return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score([1 if yi == 1 else -1 for yi in y], model.predict(X)) * 100), no_update, no_update, no_update, no_update, "Passos: {}".format(n_steps), str(n_steps)
+        for trace in plot_svm_batch_points(S_X, S_y, U_X, U_y, model): fig.add_trace(trace)
+        fig.add_trace(
+            go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)', line=dict(color='rgba(0, 0, 0, 0.5)', width=10)))
+        )
+        return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score([1 if yi == 1 else -1 for yi in y], model.predict(X)) * 100), no_update, no_update, no_update, no_update, "Passos: {}".format(n_steps), "Tamanho S: {} Tamanho U: {}".format(len(S_X), len(U_X)),  str(n_steps)
     # Adicionar os pontos do dataset ao gráfico
     fig.add_trace(
         go.Scatter(x=X[:, 0], y=X[:, 1], mode="markers", marker=dict(color=y, colorscale=colorscale), showlegend=False, name="")
     )
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score(y, model.predict(X)) * 100), no_update, no_update, no_update, no_update, no_update, "0"
+    if button_id == "bt-fit-svm": fig.add_trace(
+        go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)',line=dict(color='rgba(0, 0, 0, 0.5)', width=10))))
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score(y, model.predict(X)) * 100), no_update, no_update, no_update, no_update, no_update, no_update, "0"
     
-    return fig, "Clique em treinar modelo para ver o desempenho dele", str(seed), str(data_type_input), int(n_input), float(std_input), "Passos: {}".format(n_steps), "0"
+    return fig, "Clique em treinar modelo para ver o desempenho dele", str(seed), str(data_type_input), int(n_input), float(std_input), "Passos: {}".format(n_steps), "Tamanho S: 0 Tamanho U: 0", "0"
     
 @app.callback(Output("std-info", "children"), Input("data-type-dropdown", "value"))
 def update_std_info(data_type):
@@ -345,6 +352,7 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
         Output("bt-fit-svm", "style"),
         Output("train-info", "style"),
         Output("step-display", "style"),
+        Output("size-display", "style"),
     ],
     [
         Input("batch-switch", "on"),
@@ -352,13 +360,13 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
 )
 def update_batch_parameters(is_on):
     none_display = {"display": "none"}
-    if is_on: return {}, {}, {}, {}, {}, none_display, {}, {}
-    else: return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display
+    if is_on: return {}, {}, {}, {}, {}, none_display, {}, {}, {}
+    else: return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display
     
 # Função para gerar uma figura seguindo os padrões do dashboard
 def generate_figure(X):
     fig = go.Figure()
-    fig.update_layout(showlegend=True, margin=dict(l=16, r=16, t=16, b=16), xaxis=dict(showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False), plot_bgcolor="rgba(203, 203, 212, .3)",
+    fig.update_layout(showlegend=False, margin=dict(l=16, r=16, t=16, b=16), xaxis=dict(showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False), plot_bgcolor="rgba(203, 203, 212, .3)",
         paper_bgcolor="rgba(0,0,0,0)",
         font_family="DIN Alternate",
         xaxis_range=[X[:, 0].min() - 1, X[:, 0].max() + 1],
@@ -375,20 +383,21 @@ def get_dataset(data_type, n, std, seed):
     return X, y
     
 # Visualização dos pontos do SVM batch
-def plot_svm_batch_points(S_X, S_y, U_X, U_y):
+def plot_svm_batch_points(S_X, S_y, U_X, U_y, model):
     trace_specs = [
         [S_X, S_y, -1, 'S', 'circle'],
         [S_X, S_y, 1, 'S', 'circle'],
         [U_X, U_y, -1, 'U', 'square'],
         [U_X, U_y, 1, 'U', 'square']
     ]
-
+    color = lambda x : "#663300" if x == 1 else "#003366"
+    
     return [
         go.Scatter(
             x=X[y==label, 0], y=X[y==label, 1],
-            name=f'{split} Split, Label {label}',
+            name=f'{split} Split',
             mode='markers', marker_symbol=marker,
-            marker=dict(color=y)
+            marker=dict(color=color(label), colorscale=colorscale)
         )
         for X, y, label, split, marker in trace_specs
     ]

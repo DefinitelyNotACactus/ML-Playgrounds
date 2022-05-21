@@ -38,7 +38,8 @@ def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, deg
             if len(to_remove_idx) > 0: S_to_U = np.delete(S_to_U, to_remove_idx, axis=0)
         S_X = np.array([x for x, j in zip(S_X, r) if j in model.support_])
         S_y = np.array([y for y, j in zip(S_y, r) if j in model.support_])
-            
+        
+        if len(U_X) == 0: break
         predict = model.predict(U_X)
         vs_wrong_pred = vs_violate = 0
         VS_indexes = []
