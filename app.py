@@ -7,6 +7,8 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score
 
+from new_datasets import make_checkers
+
 from SVM_Parameters import SVM_Parameters
 from SVM_Batch import train_SVM_batch
 
@@ -54,7 +56,7 @@ app.layout = html.Div([
                 id="data-type-dropdown",
                 options=[
                     {"label": key.upper(), "value": key}
-                    for key in ["blobs", "moons", "circles"]
+                    for key in ["blobs", "moons", "circles", "checkers"]
                 ],
                 value="moons",
                 clearable=False,
@@ -303,10 +305,11 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_st
     
     return fig, "Clique em treinar modelo para ver o desempenho dele", str(seed), str(data_type_input), int(n_input), float(std_input), "Passos: {}".format(n_steps), "Tamanho S: 0 Tamanho U: 0", "0"
     
-@app.callback(Output("std-info", "children"), Input("data-type-dropdown", "value"))
+@app.callback([Output("std-info", "children"), Output("std-input", "value")], Input("data-type-dropdown", "value"))
 def update_std_info(data_type):
-    if data_type == "blobs": return "Desvio padrão das classes"
-    return "Ruído dos dados"
+    if data_type == "blobs": return "Desvio padrão das classes", 1
+    if data_type == "checkers": return "Tamanho do Xadrez (NxN)", 3
+    return "Ruído dos dados", 0.1
     
 @app.callback([Output("gamma-info", "children"), Output("degree-info", "children")], Input("kernel-dropdown", "value"))
 def update_svm_parameters_info(kernel_type):
@@ -369,8 +372,8 @@ def generate_figure(X):
     fig.update_layout(showlegend=False, margin=dict(l=16, r=16, t=16, b=16), xaxis=dict(showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False), plot_bgcolor="rgba(203, 203, 212, .3)",
         paper_bgcolor="rgba(0,0,0,0)",
         font_family="DIN Alternate",
-        xaxis_range=[X[:, 0].min() - 1, X[:, 0].max() + 1],
-        yaxis_range=[X[:, 1].min() - 1, X[:, 1].max() + 1])
+        xaxis_range=[X[:, 0].min() - 0.5, X[:, 0].max() + 0.5],
+        yaxis_range=[X[:, 1].min() - 0.5, X[:, 1].max() + 0.5])
     
     return fig
     
@@ -379,6 +382,7 @@ def get_dataset(data_type, n, std, seed):
     if data_type == "blobs": X, y = make_blobs(n_samples=int(n), centers=2, n_features=2, cluster_std=float(std), random_state=int(seed))
     elif data_type == "circles": X, y = make_circles(n_samples=int(n), noise=float(std), random_state=int(seed))
     elif data_type == "moons": X, y = make_moons(n_samples=int(n), noise=float(std), random_state=int(seed))
+    elif data_type == "checkers": X, y = make_checkers(n_samples=int(n), grid_size=int(std))
     
     return X, y
     
