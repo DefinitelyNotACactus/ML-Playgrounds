@@ -19,6 +19,7 @@ def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, deg
     in_S = {}
     S_to_U = np.array([-1 for idx in range(len(S_X))])
     while i < steps:
+        i += 1
         model = SVC(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
         model.fit(S_X, S_y)
 
@@ -78,7 +79,5 @@ def train_SVM_batch(X, y, S_size, steps, kernel_input, c_input, gamma_input, deg
         elif i == 1:
             U_X = np.delete(U_X, VS_indexes, axis=0)
             U_y = np.delete(U_y, VS_indexes, axis=0)
-
-        i += 1
 
     return model, i, S_X, U_X, S_y, U_y
