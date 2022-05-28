@@ -20,6 +20,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
+from datetime import datetime as dt
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 colorscale = [[0, "#003366"], [0.5, "rgba(203, 203, 212, .1)"], [1, "#663300"]]
 
@@ -257,6 +259,7 @@ def set_active(*args):
 )
 def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_step, bt_fit_skip, bt_fit_reset, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input, mem_steps, s_input):
     seed = randint(0, 1000)
+    start = dt.now()
     n_steps = 0
     # Definir se o callback foi ativado por um botão
     ctx = callback_context
@@ -294,14 +297,17 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_st
         fig.add_trace(
             go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)', line=dict(color='rgba(0, 0, 0, 0.5)', width=10)))
         )
-        return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score([1 if yi == 1 else -1 for yi in y], model.predict(X)) * 100), no_update, no_update, no_update, no_update, "Passos: {}".format(n_steps), "Tamanho S: {} Tamanho U: {}".format(len(S_X), len(U_X)),  str(n_steps)
+        end = dt.now()
+        elapsed = end-start
+        return fig, "Acurácia do modelo: {0:.2f}% | Tempo gasto: {1:02d}:{2:02d}".format(accuracy_score([1 if yi == 1 else -1 for yi in y], model.predict(X)) * 100, elapsed.seconds // 60 % 60, elapsed.seconds % 60), no_update, no_update, no_update, no_update, "Passos: {}".format(n_steps), "Tamanho S: {} Tamanho U: {}".format(len(S_X), len(U_X)),  str(n_steps)
     # Adicionar os pontos do dataset ao gráfico
-    fig.add_trace(
-        go.Scatter(x=X[:, 0], y=X[:, 1], mode="markers", marker=dict(color=y, colorscale=colorscale), showlegend=False, name="")
-    )
+    for trace in plot_points(X, y): fig.add_trace(trace)
     if button_id == "bt-fit-svm": fig.add_trace(
         go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)',line=dict(color='rgba(0, 0, 0, 0.5)', width=10))))
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": return fig, "Acurácia do modelo: {0:.2f}%".format(accuracy_score(y, model.predict(X)) * 100), no_update, no_update, no_update, no_update, no_update, no_update, "0"
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": 
+        end = dt.now()
+        elapsed = end-start
+        return fig, "Acurácia do modelo: {0:.2f}% | Tempo gasto: {1:02d}:{2:02d}".format(accuracy_score(y, model.predict(X)) * 100, elapsed.seconds // 60 % 60, elapsed.seconds % 60), no_update, no_update, no_update, no_update, no_update, no_update, "0"
     
     return fig, "Clique em treinar modelo para ver o desempenho dele", str(seed), str(data_type_input), int(n_input), float(std_input), "Passos: {}".format(n_steps), "Tamanho S: 0 Tamanho U: 0", "0"
     
@@ -365,15 +371,17 @@ def update_batch_parameters(is_on):
     none_display = {"display": "none"}
     if is_on: return {}, {}, {}, {}, {}, none_display, {}, {}, {}
     else: return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display
-    
+
 # Função para gerar uma figura seguindo os padrões do dashboard
 def generate_figure(X):
     fig = go.Figure()
-    fig.update_layout(showlegend=False, margin=dict(l=16, r=16, t=16, b=16), xaxis=dict(showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False), plot_bgcolor="rgba(203, 203, 212, .3)",
+    fig.update_layout(margin=dict(l=16, r=16, t=16, b=16), xaxis=dict(showgrid=False, zeroline=False), yaxis=dict(showgrid=False, zeroline=False), plot_bgcolor="rgba(203, 203, 212, .3)",
         paper_bgcolor="rgba(0,0,0,0)",
         font_family="DIN Alternate",
         xaxis_range=[X[:, 0].min() - 0.5, X[:, 0].max() + 0.5],
-        yaxis_range=[X[:, 1].min() - 0.5, X[:, 1].max() + 0.5])
+        yaxis_range=[X[:, 1].min() - 0.5, X[:, 1].max() + 0.5], 
+        legend=dict(orientation="h", yanchor="bottom", y=1, xanchor="right", x=1)
+        )
     
     return fig
     
@@ -406,6 +414,24 @@ def plot_svm_batch_points(S_X, S_y, U_X, U_y, model):
         for X, y, label, split, marker in trace_specs
     ]
 
+# Visualização dos pontos do dataset
+def plot_points(X, y):
+    trace_specs = [
+        [X, y, 0, 'Label 0', 'circle'],
+        [X, y, 1, 'Label 1', 'circle'],
+    ]
+    color = lambda x : "#663300" if x == 1 else "#003366"
+    
+    return [
+        go.Scatter(
+            x=X[y==label, 0], y=X[y==label, 1],
+            name=label_name,
+            mode='markers', marker_symbol=marker,
+            marker=dict(color=color(label), colorscale=colorscale)
+        )
+        for X, y, label, label_name, marker in trace_specs
+    ]
+
 def plot_svc_decision_function(xlim, ylim, model, margin=1, size=100):
     x = np.linspace(xlim[0] - margin, xlim[1] + margin, size)
     y = np.linspace(ylim[0] - margin, ylim[1] + margin, size)
@@ -414,7 +440,7 @@ def plot_svc_decision_function(xlim, ylim, model, margin=1, size=100):
     Z = model.decision_function(xy).reshape(xx.shape)
     # plot decision boundary and margins
     return go.Contour(x=x, y=y, z=Z, colorscale=colorscale,
-            contours_coloring="heatmap", hoverinfo="none", showlegend=False, showscale=False, opacity=0.8
+            contours_coloring="heatmap", hoverinfo="none", showscale=False, opacity=0.8
             #line_width=2,
         )
                
@@ -425,7 +451,7 @@ def plot_decision_function(xlim, ylim, model, margin=1, size=100):
     Z = model.predict_proba(np.c_[xx.ravel(), yy.ravel()])[:, 1]
     Z = Z.reshape(xx.shape)
     return go.Contour(x=x, y=y, z=Z, colorscale=colorscale,
-            contours_coloring="heatmap", hoverinfo="none", showlegend=False, showscale=False, opacity=0.8
+            contours_coloring="heatmap", hoverinfo="none", showscale=False, opacity=0.8
             #line_width=2,
     )
     
