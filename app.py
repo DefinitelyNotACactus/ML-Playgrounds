@@ -9,6 +9,7 @@ from sklearn.metrics import accuracy_score
 
 from new_datasets import make_checkers
 
+from SVF import SVF
 from SVM_Parameters import SVM_Parameters
 from SVM_Batch import train_SVM_batch
 
@@ -75,15 +76,21 @@ app.layout = html.Div([
         # Div de parâmetros do SVM
         html.Div(children=[
             html.H4("Parâmetros"),
-            html.Div(children=[
-                html.P("Batch SVM"),
-                BooleanSwitch(disabled=False, color="#003366", id="batch-switch")
-                ], style={
-                    "display": "flex",
-                    "justify-content": "space-between",
-                    "align-items": "center"}),
+            html.P("Tipo de SVM"),
+            dcc.Dropdown(
+                id="svm-type-dropdown",
+                options=[
+                    {"label": key.upper(), "value": key}
+                    for key in ["Vanilla", "Batch", "Random Factory"]
+                ],
+                value="Vanilla",
+                clearable=False,
+                className="dropdown",
+            ),
             html.P("Tamanho de S (% do dataset)", id="s-info", style={"display": "none"}),
             dcc.Input(value=0.1, id="s-input", className="input", style={"display": "none"}),
+            html.P("Número de Estimadores", id="n-estimators-info", style={"display": "none"}),
+            dcc.Input(value=3, id="n-estimators-input", className="input", style={"display": "none"}),
             html.P("Função Kernel"),
             dcc.Dropdown(
                 id="kernel-dropdown",
@@ -103,6 +110,7 @@ app.layout = html.Div([
             html.P("Use scale, auto, ou um float qualquer"),
             dcc.Input(value="scale", id="gamma-input", className="input"),
             html.Button("Treinar modelo", id="bt-fit-svm", className="basic-button", style={"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}),
+            html.Button("Treinar modelo", id="bt-fit-svf", className="basic-button", style={"display": "none"}),
             html.P("Treinar modelo", id="train-info", style={"display": "none"}),
             html.Div(children=[
                 html.Button("↺", id="bt-fit-reset", className="basic-button on", style={"margin-left": "0px", "display": "none"}),
@@ -221,6 +229,7 @@ def set_active(*args):
     [
         Input("bt-generate-data", "n_clicks"),
         Input("bt-fit-svm", "n_clicks"),
+        Input("bt-fit-svf", "n_clicks"),
         Input("bt-fit-knn", "n_clicks"),
         Input("bt-fit-dtc", "n_clicks"),
         Input("bt-fit-step", "n_clicks"),
@@ -254,10 +263,12 @@ def set_active(*args):
         State("data-type-dropdown", "value"),
         # Dados e parâmetros do batch SVM
         State("step-memory", "data"),
-        State("s-input", "value")
+        State("s-input", "value"),
+        # Parâmetros do Random Factory
+        State("n-estimators-input", "value")
     ]
 )
-def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_step, bt_fit_skip, bt_fit_reset, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input, mem_steps, s_input):
+def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_svf, bt_fit_knn, bt_fit_dtc, bt_fit_step, bt_fit_skip, bt_fit_reset, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input, mem_steps, s_input, n_estimators_input):
     seed = randint(0, 1000)
     start = dt.now()
     n_steps = 0
@@ -270,9 +281,10 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_st
     # Gerar o gráfico de saída
     fig = generate_figure(X)
     # Gerar o modelo
-    if button_id == "bt-fit-svm":
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-svf":
         if gamma_input != "auto" and gamma_input != "scale": gamma_input = float(gamma_input)
-        model = SVC(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
+        if button_id == "bt-fit-svm": model = SVC(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
+        else: model = SVF(n_estimators=int(n_estimators_input), s_size=float(s_input), kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
         model.fit(X, y)
         fig.add_trace(plot_svc_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
     elif button_id == "bt-fit-knn":
@@ -304,7 +316,7 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_knn, bt_fit_dtc, bt_fit_st
     for trace in plot_points(X, y): fig.add_trace(trace)
     if button_id == "bt-fit-svm": fig.add_trace(
         go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)',line=dict(color='rgba(0, 0, 0, 0.5)', width=10))))
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc": 
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc" or button_id == "bt-fit-svf": 
         end = dt.now()
         elapsed = end-start
         return fig, "Acurácia do modelo: {0:.2f}% | Tempo gasto: {1:02d}:{2:02d}".format(accuracy_score(y, model.predict(X)) * 100, elapsed.seconds // 60 % 60, elapsed.seconds % 60), no_update, no_update, no_update, no_update, no_update, no_update, "0"
@@ -353,8 +365,10 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
 
 @app.callback(
     [
+        # Componentes compartilhados
         Output("s-info", "style"),
         Output("s-input", "style"),
+        # Componentes do batch SVM
         Output("bt-fit-reset", "style"),
         Output("bt-fit-step", "style"),
         Output("bt-fit-skip", "style"),
@@ -362,15 +376,20 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
         Output("train-info", "style"),
         Output("step-display", "style"),
         Output("size-display", "style"),
+        # Componentes do SVM Random Factory
+        Output("bt-fit-svf", "style"),
+        Output("n-estimators-info", "style"),
+        Output("n-estimators-input", "style")
     ],
     [
-        Input("batch-switch", "on"),
+        Input("svm-type-dropdown", "value"),
     ],
 )
-def update_batch_parameters(is_on):
+def update_batch_parameters(svm_type):
     none_display = {"display": "none"}
-    if is_on: return {}, {}, {}, {}, {}, none_display, {}, {}, {}
-    else: return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display
+    if svm_type == "Batch": return {}, {}, {}, {}, {}, none_display, {}, {}, {}, none_display, none_display, none_display
+    elif svm_type == "Vanilla": return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display, none_display, none_display, none_display
+    return {}, {}, none_display, none_display, none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, {}, {}
 
 # Função para gerar uma figura seguindo os padrões do dashboard
 def generate_figure(X):
