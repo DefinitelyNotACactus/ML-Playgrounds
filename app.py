@@ -12,6 +12,7 @@ from new_datasets import make_checkers
 from CBD import CBD
 from SVM_Parameters import SVM_Parameters
 from SVM_Batch import train_SVM_batch
+from SVM_BO import SVM_BO
 
 from random import randint
 
@@ -81,7 +82,7 @@ app.layout = html.Div([
                 id="svm-type-dropdown",
                 options=[
                     {"label": key.upper(), "value": key}
-                    for key in ["Vanilla", "Batch", "CBD"]
+                    for key in ["Vanilla", "Batch", "CBD", "BO"]
                 ],
                 value="Vanilla",
                 clearable=False,
@@ -111,6 +112,7 @@ app.layout = html.Div([
             dcc.Input(value="scale", id="gamma-input", className="input"),
             html.Button("Treinar modelo", id="bt-fit-svm", className="basic-button", style={"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}),
             html.Button("Treinar modelo", id="bt-fit-cbd", className="basic-button", style={"display": "none"}),
+            html.Button("Treinar modelo", id="bt-fit-bo", className="basic-button", style={"display": "none"}),
             html.P("Treinar modelo", id="train-info", style={"display": "none"}),
             html.Div(children=[
                 html.Button("↺", id="bt-fit-reset", className="basic-button on", style={"margin-left": "0px", "display": "none"}),
@@ -230,6 +232,7 @@ def set_active(*args):
         Input("bt-generate-data", "n_clicks"),
         Input("bt-fit-svm", "n_clicks"),
         Input("bt-fit-cbd", "n_clicks"),
+        Input("bt-fit-bo", "n_clicks"),
         Input("bt-fit-knn", "n_clicks"),
         Input("bt-fit-dtc", "n_clicks"),
         Input("bt-fit-step", "n_clicks"),
@@ -268,7 +271,7 @@ def set_active(*args):
         State("k-cbd-input", "value")
     ]
 )
-def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_cbd, bt_fit_knn, bt_fit_dtc, bt_fit_step, bt_fit_skip, bt_fit_reset, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input, mem_steps, s_input, k_cbd_input):
+def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_cbd, bt_fit_bo, bt_fit_knn, bt_fit_dtc, bt_fit_step, bt_fit_skip, bt_fit_reset, mem_seed, mem_data_type, mem_n, mem_std, kernel_input, c_input, gamma_input, degree_input, k_input, knn_weights, p_input, criterion_input, splitter_input, depth_input, split_input, leaf_input, n_input, std_input, data_type_input, mem_steps, s_input, k_cbd_input):
     seed = randint(0, 1000)
     start = dt.now()
     n_steps = 0
@@ -281,14 +284,17 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_cbd, bt_fit_knn, bt_fit_dt
     # Gerar o gráfico de saída
     fig = generate_figure(X)
     # Gerar o modelo
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-cbd":
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-cbd" or button_id == "bt-fit-bo":
         if gamma_input != "auto" and gamma_input != "scale": gamma_input = float(gamma_input)
         if button_id == "bt-fit-svm": 
             model = SVC(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
             model.fit(X, y)
-        else: 
+        elif button_id == "bt-fit-cbd":
             model = CBD(s_size=float(s_input), K=int(k_cbd_input), kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
             model, S_X, U_X, S_y, U_y = model.fit(X, y)
+        else: # SVM BO
+            model = SVM_BO(kernel=kernel_input, C=float(c_input), gamma=gamma_input, degree=float(degree_input))
+            model, n_steps, S_X, U_X, S_y, U_y = model.fit(X, y)
         fig.add_trace(plot_svc_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
     elif button_id == "bt-fit-knn":
         model =  KNeighborsClassifier(n_neighbors=int(k_input), weights=knn_weights, p=int(p_input))
@@ -307,7 +313,7 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_cbd, bt_fit_knn, bt_fit_dt
     elif button_id == "bt-fit-skip":
         model, n_steps, S_X, U_X, S_y, U_y  = train_SVM_batch(X, y, float(s_input), float("inf"), kernel_input, c_input, gamma_input, degree_input)
         fig.add_trace(plot_svc_decision_function((min(X[:, 0]), max(X[:, 0])), (min(X[:, 1]), max(X[:, 1])), model))
-    if button_id == "bt-fit-step" or button_id == "bt-fit-skip" or button_id == "bt-fit-cbd":
+    if button_id == "bt-fit-step" or button_id == "bt-fit-skip" or button_id == "bt-fit-cbd" or button_id == "bt-fit-bo":
         for trace in plot_svm_batch_points(S_X, S_y, U_X, U_y): fig.add_trace(trace)
         fig.add_trace(
             go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)', line=dict(color='rgba(0, 0, 0, 0.5)', width=10)))
@@ -319,7 +325,7 @@ def generate_fit_data(bt_generate, bt_fit_svm, bt_fit_cbd, bt_fit_knn, bt_fit_dt
     for trace in plot_points(X, y): fig.add_trace(trace)
     if button_id == "bt-fit-svm": fig.add_trace(
         go.Scatter(x=model.support_vectors_[:, 0], y=model.support_vectors_[:, 1], name='Support Vector', mode='markers', marker=dict(color='rgba(0, 0, 0, 0)',line=dict(color='rgba(0, 0, 0, 0.5)', width=10))))
-    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc" or button_id == "bt-fit-cbd": 
+    if button_id == "bt-fit-svm" or button_id == "bt-fit-knn" or button_id == "bt-fit-dtc" or button_id == "bt-fit-cbd" or button_id == "bt-fit-bo": 
         end = dt.now()
         elapsed = end-start
         return fig, "Acurácia do modelo: {0:.2f}% | Tempo gasto: {1:02d}:{2:02d}".format(accuracy_score(y, model.predict(X)) * 100, elapsed.seconds // 60 % 60, elapsed.seconds % 60), no_update, no_update, no_update, no_update, no_update, no_update, "0"
@@ -382,7 +388,9 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
         # Componentes do CBD
         Output("bt-fit-cbd", "style"),
         Output("k-cbd-info", "style"),
-        Output("k-cbd-input", "style")
+        Output("k-cbd-input", "style"),
+        # Componentes do BO
+        Output("bt-fit-bo", "style"),
     ],
     [
         Input("svm-type-dropdown", "value"),
@@ -390,9 +398,11 @@ def update_parameters(bt_knn, bt_svm, bt_nn, bt_memory):
 )
 def update_batch_parameters(svm_type):
     none_display = {"display": "none"}
-    if svm_type == "Batch": return {}, {}, {}, {}, {}, none_display, {}, {}, {}, none_display, none_display, none_display
-    elif svm_type == "Vanilla": return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display, none_display, none_display, none_display
-    return {}, {}, none_display, none_display, none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, {}, {}
+    if svm_type == "Batch": return {}, {}, {}, {}, {}, none_display, {}, {}, {}, none_display, none_display, none_display, none_display
+    elif svm_type == "Vanilla": return none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, none_display, none_display, none_display, none_display, none_display, none_display, none_display
+    elif svm_type == "BO": return none_display, none_display, none_display, none_display, none_display, none_display, none_display, none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}
+    # svm_type == CBD
+    return {}, {}, none_display, none_display, none_display, none_display, none_display, none_display, none_display, {"margin-right": "0px", "margin-left": "0px", "margin-top": "12px"}, {}, {}, none_display
 
 # Função para gerar uma figura seguindo os padrões do dashboard
 def generate_figure(X):
