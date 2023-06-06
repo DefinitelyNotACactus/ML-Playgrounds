@@ -7,7 +7,7 @@ class CBD():
     def __init__(self, s_size=0.1, K=50, 
                  C=1.0, kernel='rbf', degree=3, 
                  gamma='scale', coef0=0.0, shrinking=True, 
-                 probability=False, tol=0.001, cache_size=200, 
+                 probability=True, tol=0.001, cache_size=200, 
                  class_weight=None, verbose=False, max_iter=- 1, 
                  decision_function_shape='ovr', 
                  break_ties=False, random_state=None):
@@ -94,3 +94,6 @@ class CBD():
         
     def predict(self, X):
         return self.model.predict(X)
+
+    def predict_proba(self, X):
+        return self.model.predict_proba(X)
